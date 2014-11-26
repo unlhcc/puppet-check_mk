@@ -7,4 +7,9 @@ define check_mk::server {
 
     File<<| tag == 'check_mk_remote' |>>
 
+    # force a check_mk update every puppet run
+    exec { "check_mk_update_${name}":
+        command => "/bin/su - ${name} -c 'check_mk -I ; check_mk -O'",
+    }
+
 }
