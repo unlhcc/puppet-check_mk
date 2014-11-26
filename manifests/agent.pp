@@ -12,7 +12,7 @@ define check_mk::agent (
 ) {
 
     # exported resource for a monitored host
-    @@file { "${check_mk_location}/conf.d/main/${::hostname}.mk":
+    @@file { "${check_mk_location}/conf.d/main/${::fqdn}.mk":
             ensure  => file,
             content => template('check_mk/main.erb'),
             tag     => 'check_mk_remote',
