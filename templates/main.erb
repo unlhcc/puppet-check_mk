@@ -1,3 +1,11 @@
 # puppet maintained
 
-# <%= hostname %>
+<% if !check_mk_tags.empty? %>
+<% if check_mk_tags.is_a?(Array) %>
+all_hosts = all_hosts + [ "<%= @hostname %>|<%= check_mk_tags.join("|") %>" ]
+<% else %>
+all_hosts = all_hosts + [ "<%= @hostname%>|<%= @check_mk_tags %>" ]
+<% end -%>
+<% else %>
+all_hosts = all_hosts + [ "<%= @hostname %>" ]
+<% end -%>
