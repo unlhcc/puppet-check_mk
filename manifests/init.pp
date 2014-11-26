@@ -30,4 +30,8 @@ class check_mk (
         }
     }
 
+    if $check_mk::install == 'server' {
+        check_mk::server { $omd_site: }
+    }
+
 }
