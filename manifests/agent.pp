@@ -17,4 +17,13 @@ define check_mk::agent (
             tag     => 'check_mk_remote',
     }
 
+    # xinetd.d configuration
+    file { '/etc/xinetd.d/check-mk-agent':
+        ensure  => present,
+        owner   => 'root',
+        group   => 'root',
+        mode    => '0644',
+        content => template('check_mk/check-mk-agent.erb'),
+    }
+
 }

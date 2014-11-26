@@ -4,6 +4,7 @@ class check_mk (
     $install        = $check_mk::params::install,
     $check_mk_tags  = $check_mk::params::check_mk_tags,
     $check_mk_alias = $check_mk::params::check_mk_alias,
+    $only_from      = $check_mk::params::only_from,
 ) inherits check_mk::params {
 
     if $check_mk::install == 'agent' {
@@ -25,6 +26,7 @@ class check_mk (
             omd_site_home           => $omd_site_home,
             check_mk_location       => $check_mk_location,
             check_mk_agent_location => $check_mk_agent_location,
+            only_from               => $only_from,
         }
     }
 
