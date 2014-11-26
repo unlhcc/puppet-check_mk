@@ -1,6 +1,6 @@
 # puppet maintained
 
-<% if !@check_mk_tags.empty? i-%>
+<% if !@check_mk_tags.empty? -%>
 <% if @check_mk_tags.is_a?(Array) -%>
 all_hosts = all_hosts + [ "<%= @fqdn %>|<%= @check_mk_tags.join("|") %>" ]
 <% else %>
