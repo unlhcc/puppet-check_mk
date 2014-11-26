@@ -21,6 +21,6 @@ class check_mk::params {
         default => $::check_mk_check_mk_alias,
     }
 
-    $only_from = '127.0.0.1'
+    $check_mk_server = '127.0.0.1'
 
 }
