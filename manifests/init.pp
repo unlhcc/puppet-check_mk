@@ -27,6 +27,8 @@ class check_mk (
             check_mk_location       => $check_mk_location,
             check_mk_agent_location => $check_mk_agent_location,
             check_mk_server         => $check_mk_server,
+            check_mk_tags           => $check_mk_tags,
+            check_mk_alias          => $check_mk_alias,
         }
     }
 
