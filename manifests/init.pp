@@ -15,7 +15,6 @@ class check_mk (
 
         case $::osfamily {
             RedHat: {
-                package { 'xinetd': ensure => present }
                 package { 'check-mk-agent': ensure => latest }
             }
 
