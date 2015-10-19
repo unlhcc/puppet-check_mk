@@ -14,7 +14,7 @@ class check_mk (
         $check_mk_agent_location = "${check_mk_location}/agents"
 
         case $::osfamily {
-            RedHat: {
+            'RedHat': {
                 package { 'check-mk-agent': ensure => latest }
             }
 
