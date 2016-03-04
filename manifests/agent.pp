@@ -25,6 +25,7 @@ define check_mk::agent (
         group   => 'root',
         mode    => '0644',
         content => template('check_mk/check-mk-agent.erb'),
+        notify  => Service[xinetd],
     }
 
 }
