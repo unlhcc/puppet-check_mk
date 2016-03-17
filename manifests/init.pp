@@ -5,6 +5,9 @@ class check_mk (
     $check_mk_tags   = $check_mk::params::check_mk_tags,
     $check_mk_alias  = $check_mk::params::check_mk_alias,
     $check_mk_server = $check_mk::params::check_mk_server,
+    $plugin_mk_inventory_enable = $check_mk::params::plugin_mk_inventory_enable,
+    $plugin_mk_inventory_source = $check_mk::params::plugin_mk_inventory_source,
+    $plugin_active_location     = $check_mk::params::plugin_active_location,
 ) inherits check_mk::params {
 
     if $check_mk::install == 'agent' {
