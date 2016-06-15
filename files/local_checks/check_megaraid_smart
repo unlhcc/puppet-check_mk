@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import distutils.spawn
+import sys
+import subprocess
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    # Find the binary or exit
+    megacli = find_megacli() or sys.exit()
+
+    # Get physical disk info from MegaCli
+    proc = subprocess.Popen([megacli, '-PDList', '-aALL', '-NoLog'],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = proc.stdout.readlines()
+
+    # Perf data to include
+    perf_keys = {
+        'Media Error Count'       : 'media_error',
+        'Other Error Count'       : 'other_error',
+        'Predictive Failure Count': 'predfail_count',
+        'Shield Counter'          : 'shield_count',
+        'Drive Temperature'       : 'temp',
+    }
+
+    # Parse drive info
+    for pd in parse_pdlist(output):
+        dev_id = 'c%s/e%s/s%s' % (pd['Controller'], pd['Enclosure Device ID'], pd['Slot Number'])
+
+        perf = {}
+        for key, val in perf_keys.iteritems():
+            if key in pd and pd[key]:
+                perf[val] = pd[key]
+        perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf.items()])
+
+        if pd['Drive has flagged a S.M.A.R.T alert'] == 'No':
+            ret = STATE_OK
+            message = "Drive OK"
+        else:
+            ret = STATE_CRITICAL
+            message = "SMART alert flagged"
+
+        print "%s MegaRAID_SMART_%s %s %s" % (ret, dev_id, perf_txt, message)
+
+def find_megacli():
+    mc_search = [ 'MegaCli', 'MegaCli64', 'megacli', ]
+
+    for mc in mc_search:
+        exe = distutils.spawn.find_executable(mc)
+        if exe:
+            return exe
+    return None
+
+def parse_pdlist(output):
+    ctlr = None
+    drive_info = {}
+
+    for line in output:
+        line = line.strip()
+        if line.startswith('Adapter #'):
+            ctlr = int(line[9:])
+
+        if ':' in line:
+            key, val = line.split(':', 1)
+            key = key.strip()
+            val = val.strip()
+
+            if key == 'Drive Temperature':
+                if val == 'N/A':
+                    val = None
+                else:
+                    # Split off the int
+                    val = val.split('C',1)[0]
+
+            # Marks the start of a new drive
+            if key == 'Enclosure Device ID':
+                if drive_info:
+                    drive_info['Controller'] = ctlr
+                    yield drive_info
+                drive_info = {}
+            elif key == 'Exit Code':
+                continue
+
+            drive_info[key] = val
+
+    if drive_info:
+        drive_info['Controller'] = ctlr
+        yield drive_info
+
+if __name__ == "__main__":
+    #runs script as main
+    main()
