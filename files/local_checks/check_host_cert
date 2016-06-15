@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import optparse
+import fnmatch
+import sys, os, subprocess
+from datetime import datetime, timedelta
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+global opts, args
+
+def main():
+    global opts, args
+    opts, args = parse_opts()
+
+    if args:
+        # Use the certs on the command-line
+        certs = args
+    else:
+        # Look in /etc/grid-security
+        certs = []
+        for root, _, filenames in os.walk('/etc/grid-security/'):
+            for filename in fnmatch.filter(filenames, '*cert.pem'):
+                certs.append(os.path.join(root, filename))
+
+    ret_codes = [0]
+
+    for c in certs:
+        ret, message = check_cert(c)
+
+        c_nospace = c.replace(' ', '_')
+
+        print "%s Host_cert_%s - %s" % (ret, c_nospace, message)
+        ret_codes.append(ret)
+
+    sys.exit(max(ret_codes))
+
+def check_cert(cert):
+    """Check if a certificate is valid and not expired"""
+    try:
+        check_cert_valid(cert)
+        check_cert_expire(cert, timedelta(days=opts.expire_critical))
+    except (CertError, IOError) as e:
+        return STATE_CRITICAL, "%s" % (e)
+
+    try:
+        expiry = check_cert_expire(cert, timedelta(days=opts.expire_warning))
+    except CertError as e:
+        return STATE_WARNING, "%s" % (e)
+
+    return STATE_OK, "Expires %s" % (expiry)
+
+def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
+    """Verify a certificate against system CAs"""
+    cert = load_cert(certfile)
+
+    # Check expiration
+    if cert.has_expired():
+        raise CertError("Expired")
+
+    # Check against system CA certs
+    proc = subprocess.Popen(["openssl", "verify", "-CApath", ca_path, certfile],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = proc.stdout.read()
+
+    if ": OK\n" in output:
+        return True
+    else:
+        raise CertError("Unexpected error")
+
+def check_cert_expire(certfile, delta):
+    """Check if a certificate file expires within a given time delta"""
+    expiry, cert = get_cert_expiry(certfile)
+
+    if cert.has_expired():
+        raise CertError("Expired")
+
+    if datetime.utcnow() + delta >= expiry:
+        raise CertError("Expires %s" % \
+                (ago_human(datetime.utcnow() - expiry)))
+
+    return expiry
+
+def get_cert_expiry(certfile):
+    """Return datetime with certificate expiration, and cert"""
+
+    cert = load_cert(certfile)
+    expiry = datetime.strptime(cert.get_notAfter(), '%Y%m%d%H%M%SZ')
+
+    return expiry, cert
+
+def load_cert(certfile):
+    """Load cert from file, returning X509 object"""
+
+    with open(certfile, 'r') as fp:
+        certtext = fp.read()
+
+    # Do not load OpenSSL module unless we need it, reducing dependency
+    from OpenSSL import crypto
+
+    return crypto.load_certificate(crypto.FILETYPE_PEM, certtext)
+
+def parse_opts():
+    """Parse command line options, returning (opts, args)"""
+    parser = optparse.OptionParser(usage="%prog [options]")
+
+    parser.add_option("-w", "--warning", help="Expiry warning "
+                      "[default: %default]", dest="expire_warning", type="float", default=30)
+    parser.add_option("-c", "--critical", help="Expiry critical "
+                      "[default: %default]", dest="expire_critical", type="float", default=7)
+
+    return parser.parse_args()
+
+class CertError(Exception):
+    pass
+
+##############################################################################
+# ago 0.0.5 (public domain) - https://bitbucket.org/russellballestrini/ago
+# make customizable human readable timedeltas
+def ago_delta2dict( delta ):
+    """Accepts a delta, returns a dictionary of units"""
+    delta = abs( delta )
+    return {
+        'year'   : delta.days / 365 ,
+        'day'    : delta.days % 365 ,
+        'hour'   : delta.seconds / 3600 ,
+        'minute' : (delta.seconds / 60) % 60 ,
+        'second' : delta.seconds % 60 ,
+        'microsecond' : delta.microseconds
+    }
+
+def ago_human(dt, precision=2, past_tense='{0} ago', future_tense='in {0}'):
+    """Accept a datetime or timedelta, return a human readable delta string"""
+    delta = dt
+    if type(dt) is not type(timedelta()):
+        delta = datetime.now() - dt
+
+    the_tense = past_tense
+    if delta < timedelta(0):
+        the_tense = future_tense
+
+    d = ago_delta2dict( delta )
+    hlist = []
+    count = 0
+    units = ( 'year', 'day', 'hour', 'minute', 'second', 'microsecond' )
+    for unit in units:
+        if count >= precision: break # met precision
+        if d[ unit ] == 0: continue # skip 0's
+        s = '' if d[ unit ] == 1 else 's' # handle plurals
+        hlist.append( '%s %s%s' % ( d[unit], unit, s ) )
+        count += 1
+    human_delta = ', '.join( hlist )
+    return the_tense.format(human_delta)
+# END ago
+##############################################################################
+
+if __name__ == "__main__":
+    #runs script as main
+    main()
