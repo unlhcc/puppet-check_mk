@@ -36,7 +36,7 @@ def main():
         perf = []
         for key, val in perf_keys:
             if key in pd and pd[key]:
-                perf.append((val,pd[key]))
+                perf.append((val, pd[key]))
         perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf])
 
         if pd['Drive has flagged a S.M.A.R.T alert'] == 'No':
@@ -49,7 +49,7 @@ def main():
         print "%s MegaRAID_SMART_%s %s %s" % (ret, dev_id, perf_txt, message)
 
 def find_megacli():
-    mc_search = [ 'MegaCli', 'MegaCli64', 'megacli', ]
+    mc_search = ['MegaCli', 'MegaCli64', 'megacli']
 
     for mc in mc_search:
         exe = distutils.spawn.find_executable(mc)
@@ -76,7 +76,7 @@ def parse_pdlist(output):
                     val = None
                 else:
                     # Split off the int
-                    val = val.split('C',1)[0]
+                    val = val.split('C', 1)[0]
 
             # Marks the start of a new drive
             if key == 'Enclosure Device ID':
