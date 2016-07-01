@@ -21,23 +21,23 @@ def main():
     output = proc.stdout.readlines()
 
     # Perf data to include
-    perf_keys = {
-        'Media Error Count'       : 'media_error',
-        'Other Error Count'       : 'other_error',
-        'Predictive Failure Count': 'predfail_count',
-        'Shield Counter'          : 'shield_count',
-        'Drive Temperature'       : 'temp',
-    }
+    perf_keys = [
+        ('Media Error Count'       , 'media_error'),
+        ('Other Error Count'       , 'other_error'),
+        ('Predictive Failure Count', 'predfail_count'),
+        ('Shield Counter'          , 'shield_count'),
+        ('Drive Temperature'       , 'temp'),
+    ]
 
     # Parse drive info
     for pd in parse_pdlist(output):
         dev_id = 'c%s/e%s/s%s' % (pd['Controller'], pd['Enclosure Device ID'], pd['Slot Number'])
 
-        perf = {}
-        for key, val in perf_keys.iteritems():
+        perf = []
+        for key, val in perf_keys:
             if key in pd and pd[key]:
-                perf[val] = pd[key]
-        perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf.items()])
+                perf.append((val,pd[key]))
+        perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf])
 
         if pd['Drive has flagged a S.M.A.R.T alert'] == 'No':
             ret = STATE_OK
