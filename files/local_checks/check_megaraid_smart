@@ -32,6 +32,8 @@ def main():
     # Parse drive info
     for pd in parse_pdlist(output):
         dev_id = 'c%s/e%s/s%s' % (pd['Controller'], pd['Enclosure Device ID'], pd['Slot Number'])
+        states = []
+        messages = []
 
         perf = []
         for key, val in perf_keys:
@@ -40,13 +42,20 @@ def main():
         perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf])
 
         if pd['Drive has flagged a S.M.A.R.T alert'] == 'No':
-            ret = STATE_OK
-            message = "Drive OK"
+            states.append(STATE_OK)
+            messages.append("Drive SMART OK")
         else:
-            ret = STATE_CRITICAL
-            message = "SMART alert flagged"
+            states.append(STATE_CRITICAL)
+            messages.append("SMART alert flagged")
 
-        print "%s MegaRAID_SMART_%s %s %s" % (ret, dev_id, perf_txt, message)
+        if pd['Firmware state'] == 'Failed':
+            states.append(STATE_CRITICAL)
+            messages.append("Firmware state failed")
+
+        state = max(states)
+        message = ', '.join(messages)
+
+        print "%s MegaRAID_SMART_%s %s %s" % (state, dev_id, perf_txt, message)
 
 def find_megacli():
     mc_search = ['MegaCli', 'MegaCli64', 'megacli']
