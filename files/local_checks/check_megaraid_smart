@@ -48,10 +48,6 @@ def main():
             states.append(STATE_CRITICAL)
             messages.append("SMART alert flagged")
 
-        if pd['Firmware state'] == 'Failed':
-            states.append(STATE_CRITICAL)
-            messages.append("Firmware state failed")
-
         state = max(states)
         message = ', '.join(messages)
 
