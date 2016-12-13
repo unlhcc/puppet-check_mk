@@ -11,6 +11,15 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
+# Temperature thresholds
+# Seagate Savvio 10K.3 SAS Product Manual, 100516229, Rev. J, April 2012
+# "The maximum allowable continuous or sustained HDA case temperature for the
+# rated MTBF is 122F (50C)."
+# "Occasional excursions to drive ambient temperatures of 131F (55C) or
+# 41F (5C) may occur without impact to specified MTBF."
+TEMP_CRIT = 55
+TEMP_WARN = 50
+
 def main():
     # Find the binary or exit
     megacli = find_megacli() or sys.exit()
@@ -48,6 +57,14 @@ def main():
             states.append(STATE_CRITICAL)
             messages.append("SMART alert flagged")
 
+        pd_temp = pd['Drive Temperature']
+        if pd_temp > TEMP_CRIT:
+            states.append(STATE_CRITICAL)
+            messages.append("Temp critical: %sC > %sC" % (pd_temp, TEMP_CRIT))
+        elif pd['Drive Temperature'] > TEMP_WARN:
+            states.append(STATE_WARNING)
+            messages.append("Temp warning: %sC > %sC" % (pd_temp, TEMP_WARN))
+
         state = max(states)
         message = ', '.join(messages)
 
@@ -81,7 +98,7 @@ def parse_pdlist(output):
                     val = None
                 else:
                     # Split off the int
-                    val = val.split('C', 1)[0]
+                    val = int(val.split('C', 1)[0])
 
             # Marks the start of a new drive
             if key == 'Enclosure Device ID':
