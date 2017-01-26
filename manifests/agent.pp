@@ -9,7 +9,7 @@ define check_mk::agent (
     $check_mk_location       = "${omd_site_home}/etc/check_mk",
     $check_mk_agent_location = "${check_mk_location}/agents",
 
-    $plugin_mk_invnentory_enable = $check_mk::params::plugin_mk_inventory_enable,
+    $plugin_mk_inventory_enable  = $check_mk::params::plugin_mk_inventory_enable,
     $plugin_mk_inventory_source  = $check_mk::params::plugin_mk_inventory_source,
     $plugin_active_location      = $check_mk::params::plugin_active_location,
 
