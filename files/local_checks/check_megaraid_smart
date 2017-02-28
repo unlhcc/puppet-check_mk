@@ -57,6 +57,10 @@ def main():
             states.append(STATE_CRITICAL)
             messages.append("SMART alert flagged")
 
+        if pd['Firmware state'] == 'Failed':
+            states.append(STATE_CRITICAL)
+            messages.append("Firmware state failed")
+
         pd_temp = pd['Drive Temperature']
         if pd_temp > TEMP_CRIT:
             states.append(STATE_CRITICAL)
