@@ -11,14 +11,22 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-# Temperature thresholds
-# Seagate Savvio 10K.3 SAS Product Manual, 100516229, Rev. J, April 2012
-# "The maximum allowable continuous or sustained HDA case temperature for the
-# rated MTBF is 122F (50C)."
-# "Occasional excursions to drive ambient temperatures of 131F (55C) or
-# 41F (5C) may occur without impact to specified MTBF."
-TEMP_CRIT = 55
-TEMP_WARN = 50
+def get_drive_temp_threshold(product_name):
+    # Temperature thresholds
+    # Seagate Savvio 10K.3 SAS Product Manual, 100516229, Rev. J, April 2012
+    # "The maximum allowable continuous or sustained HDA case temperature for the
+    # rated MTBF is 122F (50C)."
+    # "Occasional excursions to drive ambient temperatures of 131F (55C) or
+    # 41F (5C) may occur without impact to specified MTBF."
+    temp_crit = 55
+    temp_warn = 50
+
+    # R510 has poor airflow for rear drives. Bump up the warning threshold.
+    if product_name == 'PowerEdge R510':
+        temp_crit = 60
+        temp_warn = 56
+
+    return temp_crit, temp_warn
 
 def main():
     # Find the binary or exit
@@ -29,17 +37,12 @@ def main():
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = proc.stdout.readlines()
 
-    ########################################################
-    # Model-specific tweaks ################################
     # Get system model
     with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
         product_name = f.readline().strip()
 
-    # R510 has poor airflow for rear drives. Bump up the warning threshold.
-    if product_name == 'PowerEdge R510':
-        TEMP_CRIT = 60
-        TEMP_WARN = 56
-    ########################################################
+    # Temp threshold may vary depending on hardware type
+    temp_crit, temp_warn = get_drive_temp_threshold(product_name)
 
     # Perf data to include
     perf_keys = [
@@ -74,12 +77,12 @@ def main():
             messages.append("Firmware state failed")
 
         pd_temp = pd['Drive Temperature']
-        if pd_temp > TEMP_CRIT:
+        if pd_temp > temp_crit:
             states.append(STATE_CRITICAL)
-            messages.append("Temp critical: %sC > %sC" % (pd_temp, TEMP_CRIT))
-        elif pd['Drive Temperature'] > TEMP_WARN:
+            messages.append("Temp critical: %sC > %sC" % (pd_temp, temp_crit))
+        elif pd['Drive Temperature'] > temp_warn:
             states.append(STATE_WARNING)
-            messages.append("Temp warning: %sC > %sC" % (pd_temp, TEMP_WARN))
+            messages.append("Temp warning: %sC > %sC" % (pd_temp, temp_warn))
 
         state = max(states)
         message = ', '.join(messages)
