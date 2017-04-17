@@ -29,6 +29,18 @@ def main():
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = proc.stdout.readlines()
 
+    ########################################################
+    # Model-specific tweaks ################################
+    # Get system model
+    with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
+        product_name = f.readline().strip()
+
+    # R510 has poor airflow for rear drives. Bump up the warning threshold.
+    if product_name == 'PowerEdge R510':
+        TEMP_CRIT = 60
+        TEMP_WARN = 56
+    ########################################################
+
     # Perf data to include
     perf_keys = [
         ('Media Error Count'       , 'media_error'),
