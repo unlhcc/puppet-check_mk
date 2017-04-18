@@ -26,6 +26,11 @@ def get_drive_temp_threshold(product_name):
         temp_crit = 60
         temp_warn = 56
 
+    # R730xd have drives with 55 warn, 60 critical as per mfg
+    if product_name =='PowerEdge R730xd':
+        temp_crit = 60
+        temp_warn = 55
+
     return temp_crit, temp_warn
 
 def main():
