@@ -54,11 +54,12 @@ define check_mk::agent (
         source  => 'puppet:///modules/check_mk/local_checks',
     }
 
-    # Copy systemd plugin
-    file { '${plugin_active_location}/mk_systemd_status':
-        ensure  => file,
+    # copy plugins directory
+    file { "${plugin_active_location}":
+        ensure  => directory,
+        recurse => remote,
         mode    => '0755',
-        source  => 'puppet://modules/check_mk/plugins/mk_systemd_status'
+        source  => 'puppet://modules/check_mk/plugins',
     }
 
 }
