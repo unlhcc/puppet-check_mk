@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "<<<hcc_systemd>>>"
+systemctl show --property=Id,ActiveState '*' --no-pager
+
