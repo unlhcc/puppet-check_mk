@@ -55,11 +55,11 @@ define check_mk::agent (
     }
 
     # copy plugins directory
-    file { "${plugin_active_location}":
+    file { $plugin_active_location:
         ensure  => directory,
         recurse => remote,
         mode    => '0755',
-        source  => 'puppet://modules/check_mk/plugins',
+        source  => 'puppet:///modules/check_mk/plugins',
     }
 
 }
