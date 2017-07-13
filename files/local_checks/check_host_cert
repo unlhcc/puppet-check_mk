@@ -47,6 +47,8 @@ def check_cert(cert):
         check_cert_expire(cert, timedelta(days=opts.expire_critical))
     except (CertError, IOError) as e:
         return STATE_CRITICAL, "%s" % (e)
+    except (ImportError) as e:
+        return STATE_UNKNOWN, "Missing pyOpenSSL, %s" % (e)
 
     try:
         expiry = check_cert_expire(cert, timedelta(days=opts.expire_warning))
