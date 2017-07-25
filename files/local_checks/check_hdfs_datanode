@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import json, os.path, urllib
+
+# Show all datanode JMX data
+# curl http://localhost:50075/jmx
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+
+    # If we find a data directory, assume we should be running the datanode service
+    datadir = '/hadoop-data1'
+
+    if os.path.exists(datadir):
+        print check_datanode()
+    else:
+        return
+
+def check_datanode():
+    url = 'http://localhost:50075/jmx?qry=Hadoop:service=DataNode,name=DataNodeActivity*'
+
+    try:
+        response = urllib.urlopen(url)
+        data = json.loads(response.read())
+    except IOError:
+        return '%s HDFS_DataNode - Could not contact datanode service' % (STATE_UNKNOWN)
+
+    vfail = data['beans'][0]['VolumeFailures']
+
+    if vfail > 1:
+        return '%s HDFS_DataNode - %s volumes failed' % (STATE_CRITICAL, vfail)
+    elif vfail > 0:
+        return '%s HDFS_DataNode - %s volume failed' % (STATE_WARNING, vfail)
+    else:
+        return '%s HDFS_DataNode - Volumes OK' % (STATE_OK)
+
+if __name__ == "__main__":
+    #runs script as main
+    main()
