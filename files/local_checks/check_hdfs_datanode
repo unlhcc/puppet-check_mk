@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
-import json, os.path, urllib
+import errno, json, os, urllib
 
 # Show all datanode JMX data
 # curl http://localhost:50075/jmx
@@ -17,10 +17,14 @@ def main():
     # If we find a data directory, assume we should be running the datanode service
     datadir = '/hadoop-data1'
 
-    if os.path.exists(datadir):
-        print check_datanode()
-    else:
-        return
+    try:
+        os.stat(datadir)
+    except OSError, e:
+        # A disk failure returns EIO on stat()
+        if e.errno != errno.EIO:
+            return
+
+    print check_datanode()
 
 def check_datanode():
     url = 'http://localhost:50075/jmx?qry=Hadoop:service=DataNode,name=DataNodeActivity*'
