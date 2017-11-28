@@ -1,0 +1,170 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+from datetime import datetime, timedelta
+import optparse
+import os
+import subprocess
+import sys
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+DEFAULT_CRLS = {
+    # CERN Grid CA CRL is published at least every 24 hours (sec 2.3, Time or frequency of publication)
+    # https://cafiles.cern.ch/cafiles/cp-cps/cern-grid-ca-cp-cps.pdf
+    # Lifetime appears to be 6356 minutes
+    'CERN': '/etc/grid-security/certificates/5168735f.r0',
+    'OSG': '/etc/grid-security/certificates/70d35895.r0',
+}
+
+def main():
+    global opts, args
+    opts, args = parse_opts()
+
+    crls = dict()
+
+    if args:
+        # Use the CRLs on the command-line
+        for i in args:
+            crls[i] = i
+    else:
+        # Use built-in list
+        for name, crl in DEFAULT_CRLS.iteritems():
+            if os.path.isfile(crl):
+                crls[name] = crl
+
+    ret_codes = [0]
+
+    for name, crl in crls.iteritems():
+        ret, message = check_crl(crl, opts.ca_path)
+
+        name_nospace = name.replace(' ', '_')
+
+        print("%s CRL_%s - %s" % (ret, name_nospace, message))
+        ret_codes.append(ret)
+
+    sys.exit(max(ret_codes))
+
+def check_crl(crl, ca_path):
+    """Check if a CRL is valid and not expired"""
+    try:
+        check_crl_valid(crl, ca_path)
+        check_crl_expire(crl, timedelta(days=opts.expire_critical))
+    except (CrlError, IOError) as e:
+        return STATE_CRITICAL, "%s" % (e)
+
+    try:
+        expiry = check_crl_expire(crl, timedelta(days=opts.expire_warning))
+    except CrlError as e:
+        return STATE_WARNING, "%s" % (e)
+
+    return STATE_OK, "Expires %s" % (expiry)
+
+def check_crl_valid(crlfile, ca_path):
+    """Verify a CRL against CAs"""
+    info = get_crl_info(crlfile, ca_path)
+
+    if not info['valid']:
+        raise CrlError("Invalid")
+
+    return True
+
+def check_crl_expire(crlfile, delta):
+    """Check if a CRL file expires within a given time delta"""
+    expiry = get_crl_info(crlfile)['expiry']
+
+    if datetime.utcnow() >= expiry:
+        raise CrlError("Expired")
+
+    if datetime.utcnow() + delta >= expiry:
+        raise CrlError("Expires %s" % \
+                (ago_human(datetime.utcnow() - expiry)))
+
+    return expiry
+
+def get_crl_info(crlfile, ca_path=None):
+    cmd = ["openssl", "crl", "-noout", "-in", crlfile, "-nextupdate"]
+
+    if ca_path:
+        cmd.extend(["-CApath", ca_path])
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = proc.stdout.readlines()
+
+    # Get validity
+    if ca_path is None:
+        valid = None
+    elif 'verify OK' in output.pop(0):
+        valid = True
+    else:
+        valid = False
+
+    # Get expiration
+    expiry_txt = output.pop(0).split('=')[1].strip()
+    expiry = datetime.strptime(expiry_txt, '%b %d %H:%M:%S %Y %Z')
+
+    return {'valid': valid, 'expiry': expiry}
+
+def parse_opts():
+    """Parse command line options, returning (opts, args)"""
+    parser = optparse.OptionParser(usage="%prog [options]")
+
+    parser.add_option("-w", "--warning", help="Expiry warning "
+                      "[default: %default]", dest="expire_warning", type="float", default=3)
+    parser.add_option("-c", "--critical", help="Expiry critical "
+                      "[default: %default]", dest="expire_critical", type="float", default=1)
+    parser.add_option("--capath", help="Path to hashed certificate directory "
+                      "[default: %default]", dest="ca_path", default="/etc/grid-security/certificates/")
+
+    return parser.parse_args()
+
+class CrlError(Exception):
+    pass
+
+##############################################################################
+# ago 0.0.5 (public domain) - https://bitbucket.org/russellballestrini/ago
+# make customizable human readable timedeltas
+def ago_delta2dict(delta):
+    """Accepts a delta, returns a dictionary of units"""
+    delta = abs(delta)
+    return {
+        'year'   : delta.days / 365,
+        'day'    : delta.days % 365,
+        'hour'   : delta.seconds / 3600,
+        'minute' : (delta.seconds / 60) % 60,
+        'second' : delta.seconds % 60,
+        'microsecond' : delta.microseconds
+    }
+
+def ago_human(dt, precision=2, past_tense='{0} ago', future_tense='in {0}'):
+    """Accept a datetime or timedelta, return a human readable delta string"""
+    delta = dt
+    if type(dt) is not type(timedelta()):
+        delta = datetime.now() - dt
+
+    the_tense = past_tense
+    if delta < timedelta(0):
+        the_tense = future_tense
+
+    d = ago_delta2dict(delta)
+    hlist = []
+    count = 0
+    units = ('year', 'day', 'hour', 'minute', 'second', 'microsecond')
+    for unit in units:
+        if count >= precision: break # met precision
+        if d[unit] == 0: continue # skip 0's
+        s = '' if d[unit] == 1 else 's' # handle plurals
+        hlist.append('%s %s%s' % (d[unit], unit, s))
+        count += 1
+    human_delta = ', '.join(hlist)
+    return the_tense.format(human_delta)
+# END ago
+##############################################################################
+
+if __name__ == "__main__":
+    #runs script as main
+    main()
