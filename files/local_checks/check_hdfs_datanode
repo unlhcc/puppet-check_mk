@@ -36,13 +36,29 @@ def check_datanode():
         return '%s HDFS_DataNode - Could not contact datanode service' % (STATE_UNKNOWN)
 
     vfail = data['beans'][0]['VolumeFailures']
+    mfail = check_datanode_mounts()
 
-    if vfail > 1:
-        return '%s HDFS_DataNode - %s volumes failed' % (STATE_CRITICAL, vfail)
-    elif vfail > 0:
-        return '%s HDFS_DataNode - %s volume failed' % (STATE_WARNING, vfail)
+    if vfail > 1 or mfail > 1:
+        return '%s HDFS_DataNode - %s volumes failed, %s mounts failed' % (STATE_CRITICAL, vfail, mfail)
+    elif vfail > 0 or mfail > 0:
+        return '%s HDFS_DataNode - %s volume failed, %s mount failed' % (STATE_WARNING, vfail, mfail)
     else:
         return '%s HDFS_DataNode - Volumes OK' % (STATE_OK)
+
+def check_datanode_mounts():
+    # Check the status of the /hadoop-data* mounts
+    # If XFS has an error, mountinfo will look fine, but access attempts show
+    #   cannot access /hadoop-dataX: Input/output error
+    import glob
+    bad = 0
+
+    for datadir in glob.glob('/hadoop-data*'):
+        try:
+            os.stat(datadir)
+        except OSError, e:
+            bad += 1
+
+    return bad
 
 if __name__ == "__main__":
     #runs script as main
