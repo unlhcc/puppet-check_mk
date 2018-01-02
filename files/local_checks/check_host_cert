@@ -73,7 +73,7 @@ def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
     if ": OK\n" in output:
         return True
     else:
-        raise CertError("Unexpected error")
+        raise CertError("Failed to verify cert against CAs")
 
 def check_cert_expire(certfile, delta):
     """Check if a certificate file expires within a given time delta"""
