@@ -15,7 +15,7 @@ STATE_UNKNOWN = 3
 def main():
 
     # If we find a data directory, assume we should be running the datanode service
-    datadir = '/hadoop-data1'
+    datadir = '/hadoop-data1/current'
 
     try:
         os.stat(datadir)
