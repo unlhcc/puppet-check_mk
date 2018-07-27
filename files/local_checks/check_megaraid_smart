@@ -11,7 +11,7 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-def get_drive_temp_threshold(product_name):
+def get_drive_temp_threshold(product_name, media_type, slot_number):
     # Temperature thresholds
     # Seagate Savvio 10K.3 SAS Product Manual, 100516229, Rev. J, April 2012
     # "The maximum allowable continuous or sustained HDA case temperature for the
@@ -31,6 +31,11 @@ def get_drive_temp_threshold(product_name):
         temp_crit = 60
         temp_warn = 55
 
+    if media_type == 'Solid State Device':
+        # Intel DC S3500 operating temp is 0-70C
+        temp_crit = 68
+        temp_warn = 63
+
     return temp_crit, temp_warn
 
 def main():
@@ -45,9 +50,6 @@ def main():
     # Get system model
     with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
         product_name = f.readline().strip()
-
-    # Temp threshold may vary depending on hardware type
-    temp_crit, temp_warn = get_drive_temp_threshold(product_name)
 
     # Perf data to include
     perf_keys = [
@@ -80,6 +82,9 @@ def main():
         if pd['Firmware state'] == 'Failed':
             states.append(STATE_CRITICAL)
             messages.append("Firmware state failed")
+
+        # Temp threshold may vary depending on hardware type
+        temp_crit, temp_warn = get_drive_temp_threshold(product_name, pd['Media Type'], pd['Slot Number'])
 
         pd_temp = pd['Drive Temperature']
         if pd_temp > temp_crit:
