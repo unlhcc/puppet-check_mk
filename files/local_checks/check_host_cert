@@ -112,7 +112,7 @@ def parse_opts():
     parser = optparse.OptionParser(usage="%prog [options]")
 
     parser.add_option("-w", "--warning", help="Expiry warning "
-                      "[default: %default]", dest="expire_warning", type="float", default=30)
+                      "[default: %default]", dest="expire_warning", type="float", default=21)
     parser.add_option("-c", "--critical", help="Expiry critical "
                       "[default: %default]", dest="expire_critical", type="float", default=7)
 
