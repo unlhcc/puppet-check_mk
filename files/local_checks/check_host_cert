@@ -28,6 +28,11 @@ def main():
             for filename in fnmatch.filter(filenames, '*cert.pem'):
                 certs.append(os.path.join(root, filename))
 
+        # Look for puppet certificate
+        puppet_cert_path = "/etc/puppetlabs/puppet/ssl/certs/%s.pem" % os.uname()[1]
+        if os.path.isfile(puppet_cert_path):
+            certs.append(puppet_cert_path)
+
     ret_codes = [0]
 
     for c in certs:
