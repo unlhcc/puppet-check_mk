@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/libexec/platform-python
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
-import distutils.spawn
+import shutil
 import sys
 import subprocess
 
@@ -97,13 +97,17 @@ def main():
         state = max(states)
         message = ', '.join(messages)
 
-        print "%s MegaRAID_SMART_%s %s %s" % (state, dev_id, perf_txt, message)
+        print("%s MegaRAID_SMART_%s %s %s" % (state, dev_id, perf_txt, message))
 
 def find_megacli():
     mc_search = ['MegaCli', 'MegaCli64', 'megacli']
 
+    if sys.version_info[0] < 3:
+        import distutils.spawn
+        shutil.which = distutils.spawn.find_executable
+
     for mc in mc_search:
-        exe = distutils.spawn.find_executable(mc)
+        exe = shutil.which(mc)
         if exe:
             return exe
     return None

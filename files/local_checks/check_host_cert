@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/libexec/platform-python
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 import optparse
@@ -40,7 +40,7 @@ def main():
 
         c_nospace = c.replace(' ', '_')
 
-        print "%s Host_cert_%s - %s" % (ret, c_nospace, message)
+        print("%s Host_cert_%s - %s" % (ret, c_nospace, message))
         ret_codes.append(ret)
 
     sys.exit(max(ret_codes))
@@ -75,7 +75,7 @@ def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = proc.stdout.read()
 
-    if ": OK\n" in output:
+    if b': OK\n' in output:
         return True
     else:
         raise CertError("Failed to verify cert against CAs")
@@ -97,7 +97,7 @@ def get_cert_expiry(certfile):
     """Return datetime with certificate expiration, and cert"""
 
     cert = load_cert(certfile)
-    expiry = datetime.strptime(cert.get_notAfter(), '%Y%m%d%H%M%SZ')
+    expiry = datetime.strptime(cert.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%SZ')
 
     return expiry, cert
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/libexec/platform-python
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 from datetime import datetime, timedelta
@@ -33,13 +33,13 @@ def main():
             crls[i] = i
     else:
         # Use built-in list
-        for name, crl in DEFAULT_CRLS.iteritems():
+        for name, crl in DEFAULT_CRLS.items():
             if os.path.isfile(crl):
                 crls[name] = crl
 
     ret_codes = [0]
 
-    for name, crl in crls.iteritems():
+    for name, crl in crls.items():
         ret, message = check_crl(crl, opts.ca_path)
 
         name_nospace = name.replace(' ', '_')
@@ -98,13 +98,13 @@ def get_crl_info(crlfile, ca_path=None):
     # Get validity
     if ca_path is None:
         valid = None
-    elif 'verify OK' in output.pop(0):
+    elif b'verify OK' in output.pop(0):
         valid = True
     else:
         valid = False
 
     # Get expiration
-    expiry_txt = output.pop(0).split('=')[1].strip()
+    expiry_txt = output.pop(0).decode('utf-8').split('=')[1].strip()
     expiry = datetime.strptime(expiry_txt, '%b %d %H:%M:%S %Y %Z')
 
     return {'valid': valid, 'expiry': expiry}
