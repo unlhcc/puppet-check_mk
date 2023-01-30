@@ -8,6 +8,7 @@ class check_mk (
     $plugin_mk_inventory_enable = $check_mk::params::plugin_mk_inventory_enable,
     $plugin_mk_inventory_source = $check_mk::params::plugin_mk_inventory_source,
     $plugin_active_location     = $check_mk::params::plugin_active_location,
+    $file_resource_hash         = $check_mk::params::file_resource_hash,
 ) inherits check_mk::params {
 
     if $check_mk::install == 'agent' {
@@ -37,5 +38,8 @@ class check_mk (
     if $check_mk::install == 'server' {
         check_mk::server { $omd_site: }
     }
+
+    # Ensure any file resources in hiera are setup.
+    ensure_resources('file', $file_resource_hash)
 
 }

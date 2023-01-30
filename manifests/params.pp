@@ -13,4 +13,6 @@ class check_mk::params {
     $plugin_mk_inventory_source  = '/usr/share/check-mk-agent/available-plugins/mk_inventory'
     $plugin_active_location      = '/usr/share/check-mk-agent/plugins'
 
+    $file_resource_hash = {}
+
 }
