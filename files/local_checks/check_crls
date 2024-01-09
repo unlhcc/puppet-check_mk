@@ -18,7 +18,7 @@ DEFAULT_CRLS = {
     # https://cafiles.cern.ch/cafiles/cp-cps/cern-grid-ca-cp-cps.pdf
     # Lifetime appears to be 6356 minutes
     'CERN': '/etc/grid-security/certificates/5168735f.r0',
-    'InCommon': '/etc/grid-security/certificates/ba240aa8.r0',
+    'InCommon': '/etc/grid-security/certificates/1e49ade3.r0',
 }
 
 def main():
