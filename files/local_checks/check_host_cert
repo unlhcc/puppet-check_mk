@@ -14,6 +14,7 @@ STATE_UNKNOWN = 3
 
 global opts, args
 
+
 def main():
     global opts, args
     opts, args = parse_opts()
@@ -24,8 +25,8 @@ def main():
     else:
         # Look in /etc/grid-security
         certs = []
-        for root, _, filenames in os.walk('/etc/grid-security/'):
-            for filename in fnmatch.filter(filenames, '*cert.pem'):
+        for root, _, filenames in os.walk("/etc/grid-security/"):
+            for filename in fnmatch.filter(filenames, "*cert.pem"):
                 certs.append(os.path.join(root, filename))
 
         # Look for puppet certificate
@@ -38,12 +39,13 @@ def main():
     for c in certs:
         ret, message = check_cert(c)
 
-        c_nospace = c.replace(' ', '_')
+        c_nospace = c.replace(" ", "_")
 
         print("%s Host_cert_%s - %s" % (ret, c_nospace, message))
         ret_codes.append(ret)
 
     sys.exit(max(ret_codes))
+
 
 def check_cert(cert):
     """Check if a certificate is valid and not expired"""
@@ -52,7 +54,7 @@ def check_cert(cert):
         check_cert_expire(cert, timedelta(days=opts.expire_critical))
     except (CertError, IOError) as e:
         return STATE_CRITICAL, "%s" % (e)
-    except (ImportError) as e:
+    except ImportError as e:
         return STATE_UNKNOWN, "Missing pyOpenSSL, %s" % (e)
 
     try:
@@ -61,6 +63,7 @@ def check_cert(cert):
         return STATE_WARNING, "%s" % (e)
 
     return STATE_OK, "Expires %s" % (expiry)
+
 
 def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
     """Verify a certificate against system CAs"""
@@ -71,14 +74,18 @@ def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
         raise CertError("Expired")
 
     # Check against system CA certs
-    proc = subprocess.Popen(["openssl", "verify", "-CApath", ca_path, certfile],
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(
+        ["openssl", "verify", "-CApath", ca_path, certfile],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
     output = proc.stdout.read()
 
-    if b': OK\n' in output:
+    if b": OK\n" in output:
         return True
     else:
         raise CertError("Failed to verify cert against CAs")
+
 
 def check_cert_expire(certfile, delta):
     """Check if a certificate file expires within a given time delta"""
@@ -88,23 +95,24 @@ def check_cert_expire(certfile, delta):
         raise CertError("Expired")
 
     if datetime.utcnow() + delta >= expiry:
-        raise CertError("Expires %s" % \
-                (ago_human(datetime.utcnow() - expiry)))
+        raise CertError("Expires %s" % (ago_human(datetime.utcnow() - expiry)))
 
     return expiry
+
 
 def get_cert_expiry(certfile):
     """Return datetime with certificate expiration, and cert"""
 
     cert = load_cert(certfile)
-    expiry = datetime.strptime(cert.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%SZ')
+    expiry = datetime.strptime(cert.get_notAfter().decode("utf-8"), "%Y%m%d%H%M%SZ")
 
     return expiry, cert
+
 
 def load_cert(certfile):
     """Load cert from file, returning X509 object"""
 
-    with open(certfile, 'r') as fp:
+    with open(certfile, "r") as fp:
         certtext = fp.read()
 
     # Do not load OpenSSL module unless we need it, reducing dependency
@@ -112,19 +120,34 @@ def load_cert(certfile):
 
     return crypto.load_certificate(crypto.FILETYPE_PEM, certtext)
 
+
 def parse_opts():
     """Parse command line options, returning (opts, args)"""
     parser = optparse.OptionParser(usage="%prog [options]")
 
-    parser.add_option("-w", "--warning", help="Expiry warning "
-                      "[default: %default]", dest="expire_warning", type="float", default=21)
-    parser.add_option("-c", "--critical", help="Expiry critical "
-                      "[default: %default]", dest="expire_critical", type="float", default=7)
+    parser.add_option(
+        "-w",
+        "--warning",
+        help="Expiry warning " "[default: %default]",
+        dest="expire_warning",
+        type="float",
+        default=21,
+    )
+    parser.add_option(
+        "-c",
+        "--critical",
+        help="Expiry critical " "[default: %default]",
+        dest="expire_critical",
+        type="float",
+        default=7,
+    )
 
     return parser.parse_args()
 
+
 class CertError(Exception):
     pass
+
 
 ##############################################################################
 # ago 0.0.95 (public domain) - https://pypi.org/project/ago
@@ -142,7 +165,10 @@ def ago_delta2dict(delta):
         "microsecond": int(delta.microseconds % 1000),
     }
 
-def ago_human(dt, precision=2, past_tense="{} ago", future_tense="in {}", abbreviate=False):
+
+def ago_human(
+    dt, precision=2, past_tense="{} ago", future_tense="in {}", abbreviate=False
+):
     """Accept a datetime or timedelta, return a human readable delta string"""
     delta = dt
     if type(dt) is not type(timedelta()):
@@ -172,9 +198,11 @@ def ago_human(dt, precision=2, past_tense="{} ago", future_tense="in {}", abbrev
         count += 1
 
     return the_tense.format(", ".join(hlist))
+
+
 # END ago
 ##############################################################################
 
 if __name__ == "__main__":
-    #runs script as main
+    # runs script as main
     main()
