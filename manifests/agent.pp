@@ -48,10 +48,14 @@ define check_mk::agent (
 
     # copy local checks directory
     file { '/usr/share/check-mk-agent/local':
-        ensure  => directory,
-        recurse => remote,
-        mode    => '0755',
-        source  => 'puppet:///modules/check_mk/local_checks',
+        ensure       => directory,
+        recurse      => remote,
+        mode         => '0755',
+        sourceselect => all,
+        source       => [
+            "puppet:///modules/check_mk/local_checks.${::facts[os][family]}-${::facts[os][release][major]}",
+            'puppet:///modules/check_mk/local_checks',
+        ],
     }
 
     # copy plugins directory

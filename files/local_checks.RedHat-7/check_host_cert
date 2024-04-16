@@ -1,0 +1,211 @@
+#!/usr/libexec/platform-python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import optparse
+import fnmatch
+import sys
+import os
+import subprocess
+from datetime import datetime, timedelta
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+global opts, args
+
+
+def main():
+    global opts, args
+    opts, args = parse_opts()
+
+    if args:
+        # Use the certs on the command-line
+        certs = args
+    else:
+        # Look in /etc/grid-security
+        certs = []
+        for root, _, filenames in os.walk("/etc/grid-security/"):
+            for filename in fnmatch.filter(filenames, "*cert.pem"):
+                # Build a tuple of (cert,ca)
+                certs.append(
+                    (os.path.join(root, filename), "/etc/grid-security/certificates")
+                )
+
+        # Look for puppet certificate
+        puppet_cert_path = "/etc/puppetlabs/puppet/ssl/certs/%s.pem" % os.uname()[1]
+        if os.path.isfile(puppet_cert_path):
+            certs.append((puppet_cert_path, "/etc/puppetlabs/puppet/ssl/certs/ca.pem"))
+
+    ret_codes = [0]
+
+    for cert, ca in certs:
+        ret, message = check_cert(cert, ca)
+
+        c_nospace = cert.replace(" ", "_")
+
+        print("%s Host_cert_%s - %s" % (ret, c_nospace, message))
+        ret_codes.append(ret)
+
+    sys.exit(max(ret_codes))
+
+
+def check_cert(cert, ca=None):
+    """Check if a certificate is valid and not expired"""
+    try:
+        check_cert_valid(cert, ca)
+        check_cert_expire(cert, timedelta(days=opts.expire_critical))
+    except (CertError, IOError) as e:
+        return STATE_CRITICAL, "%s" % (e)
+
+    try:
+        expiry = check_cert_expire(cert, timedelta(days=opts.expire_warning))
+    except CertError as e:
+        return STATE_WARNING, "%s" % (e)
+
+    return STATE_OK, "Expires %s" % (expiry)
+
+
+def check_cert_valid(certfile, ca=None):
+    """Verify a certificate against system CAs"""
+
+    # If no CA is given, skip the check
+    if ca is None:
+        return True
+
+    # Do we have a CA directory or a single file?
+    if os.path.isfile(ca):
+        ca_flag = "-CAfile"
+    else:
+        ca_flag = "-CApath"
+
+    proc = subprocess.Popen(
+        ["openssl", "verify", ca_flag, ca, certfile],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = proc.stdout.read()
+
+    if b": OK\n" in output:
+        return True
+    raise CertError("Failed to verify cert against CAs")
+
+
+def check_cert_expire(certfile, delta):
+    """Check if a certificate file expires within a given time delta"""
+    expiry = get_cert_expiry(certfile)
+
+    if datetime.utcnow() >= expiry:
+        raise CertError("Expired")
+
+    if datetime.utcnow() + delta >= expiry:
+        raise CertError("Expires %s" % (ago_human(datetime.utcnow() - expiry)))
+
+    return expiry
+
+
+def get_cert_expiry(certfile):
+    """Return cert expiration datetime"""
+
+    proc = subprocess.Popen(
+        ["openssl", "x509", "-enddate", "-noout", "-in", certfile],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = proc.stdout.read().decode("utf-8").strip()
+
+    if output.startswith("notAfter="):
+        expiry = output.split("=")[1]
+        return datetime.strptime(expiry, "%b %d %H:%M:%S %Y %Z")
+    else:
+        raise CertError("Could not get expiration")
+
+
+
+def parse_opts():
+    """Parse command line options, returning (opts, args)"""
+    parser = optparse.OptionParser(usage="%prog [options]")
+
+    parser.add_option(
+        "-w",
+        "--warning",
+        help="Expiry warning " "[default: %default]",
+        dest="expire_warning",
+        type="float",
+        default=21,
+    )
+    parser.add_option(
+        "-c",
+        "--critical",
+        help="Expiry critical " "[default: %default]",
+        dest="expire_critical",
+        type="float",
+        default=7,
+    )
+
+    return parser.parse_args()
+
+
+class CertError(Exception):
+    pass
+
+
+##############################################################################
+# ago 0.0.95 (public domain) - https://pypi.org/project/ago
+# Human readable timedeltas
+def ago_delta2dict(delta):
+    """Accepts a delta, returns a dictionary of units"""
+    delta = abs(delta)
+    return {
+        "year": int(delta.days / 365),
+        "day": int(delta.days % 365),
+        "hour": int(delta.seconds / 3600),
+        "minute": int(delta.seconds / 60) % 60,
+        "second": int(delta.seconds % 60),
+        "millisecond": int(delta.microseconds / 1000),
+        "microsecond": int(delta.microseconds % 1000),
+    }
+
+
+def ago_human(
+    dt, precision=2, past_tense="{} ago", future_tense="in {}", abbreviate=False
+):
+    """Accept a datetime or timedelta, return a human readable delta string"""
+    delta = dt
+    if type(dt) is not type(timedelta()):
+        delta = datetime.now() - dt
+    the_tense = future_tense if delta < timedelta(0) else past_tense
+
+    d = ago_delta2dict(delta)
+    hlist = []
+    count = 0
+    units = ("year", "day", "hour", "minute", "second", "millisecond", "microsecond")
+    for unit in units:
+        if count >= precision:
+            break  # met precision
+        if d[unit] == 0:
+            continue  # skip 0's
+        if abbreviate:
+            if unit == "millisecond":
+                abr = "ms"
+            elif unit == "microsecond":
+                abr = "um"
+            else:
+                abr = unit[0]
+            hlist.append("{}{}".format(d[unit], abr))
+        else:
+            s = "" if d[unit] == 1 else "s"  # handle plurals
+            hlist.append("{} {}{}".format(d[unit], unit, s))
+        count += 1
+
+    return the_tense.format(", ".join(hlist))
+
+
+# END ago
+##############################################################################
+
+if __name__ == "__main__":
+    # runs script as main
+    main()
