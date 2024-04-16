@@ -14,6 +14,7 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
+
 global args
 
 
@@ -29,19 +30,22 @@ def main():
         certs = []
         for root, _, filenames in os.walk("/etc/grid-security/"):
             for filename in fnmatch.filter(filenames, "*cert.pem"):
-                certs.append(os.path.join(root, filename))
+                # Build a tuple of (cert,ca)
+                certs.append(
+                    (os.path.join(root, filename), "/etc/grid-security/certificates")
+                )
 
         # Look for puppet certificate
         puppet_cert_path = f"/etc/puppetlabs/puppet/ssl/certs/{os.uname()[1]}.pem"
         if os.path.isfile(puppet_cert_path):
-            certs.append(puppet_cert_path)
+            certs.append((puppet_cert_path, "/etc/puppetlabs/puppet/ssl/certs/ca.pem"))
 
     ret_codes = [0]
 
-    for c in certs:
-        ret, message = check_cert(c)
+    for cert, ca in certs:
+        ret, message = check_cert(cert, ca)
 
-        c_nospace = c.replace(" ", "_")
+        c_nospace = cert.replace(" ", "_")
 
         print(f"{ret} Host_cert_{c_nospace} - {message}")
         ret_codes.append(ret)
@@ -49,15 +53,13 @@ def main():
     sys.exit(max(ret_codes))
 
 
-def check_cert(cert):
+def check_cert(cert, ca=None):
     """Check if a certificate is valid and not expired"""
     try:
-        check_cert_valid(cert)
+        check_cert_valid(cert, ca)
         check_cert_expire(cert, timedelta(days=args.expire_critical))
     except (CertError, IOError) as e:
         return STATE_CRITICAL, str(e)
-    except ImportError as e:
-        return STATE_UNKNOWN, f"Missing pyOpenSSL, {e}"
 
     try:
         expiry = check_cert_expire(cert, timedelta(days=args.expire_warning))
@@ -67,17 +69,21 @@ def check_cert(cert):
     return STATE_OK, f"Expires {expiry}"
 
 
-def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
+def check_cert_valid(certfile, ca=None):
     """Verify a certificate against system CAs"""
-    cert = load_cert(certfile)
 
-    # Check expiration
-    if cert.has_expired():
-        raise CertError("Expired")
+    # If no CA is given, skip the check
+    if ca is None:
+        return True
 
-    # Check against system CA certs
+    # Do we have a CA directory or a single file?
+    if os.path.isfile(ca):
+        ca_flag = "-CAfile"
+    else:
+        ca_flag = "-CApath"
+
     proc = subprocess.Popen(
-        ["openssl", "verify", "-CApath", ca_path, certfile],
+        ["openssl", "verify", ca_flag, ca, certfile],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -90,9 +96,9 @@ def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
 
 def check_cert_expire(certfile, delta):
     """Check if a certificate file expires within a given time delta"""
-    expiry, cert = get_cert_expiry(certfile)
+    expiry = get_cert_expiry(certfile)
 
-    if cert.has_expired():
+    if datetime.utcnow() >= expiry:
         raise CertError("Expired")
 
     if datetime.utcnow() + delta >= expiry:
@@ -102,24 +108,20 @@ def check_cert_expire(certfile, delta):
 
 
 def get_cert_expiry(certfile):
-    """Return datetime with certificate expiration, and cert"""
+    """Return cert expiration datetime"""
 
-    cert = load_cert(certfile)
-    expiry = datetime.strptime(cert.get_notAfter().decode("utf-8"), "%Y%m%d%H%M%SZ")
+    proc = subprocess.Popen(
+        ["openssl", "x509", "-enddate", "-noout", "-in", certfile],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = proc.stdout.read().decode("utf-8").strip()
 
-    return expiry, cert
-
-
-def load_cert(certfile):
-    """Load cert from file, returning X509 object"""
-
-    with open(certfile, "r") as fp:
-        certtext = fp.read()
-
-    # Do not load OpenSSL module unless we need it, reducing dependency
-    from OpenSSL import crypto
-
-    return crypto.load_certificate(crypto.FILETYPE_PEM, certtext)
+    if output.startswith("notAfter="):
+        expiry = output.split("=")[1]
+        return datetime.strptime(expiry, "%b %d %H:%M:%S %Y %Z")
+    else:
+        raise CertError("Could not get expiration")
 
 
 def parse_args():
@@ -140,7 +142,7 @@ def parse_args():
         type=float,
         default=7,
     )
-    parser.add_argument('certs', nargs='*')
+    parser.add_argument("certs", nargs="*")
 
     return parser.parse_args()
 
