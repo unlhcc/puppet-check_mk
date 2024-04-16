@@ -1,9 +1,11 @@
 #!/usr/libexec/platform-python
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
-import optparse
+import argparse
 import fnmatch
-import sys, os, subprocess
+import sys
+import os
+import subprocess
 from datetime import datetime, timedelta
 
 # Nagios exit status
@@ -12,16 +14,16 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-global opts, args
+global args
 
 
 def main():
-    global opts, args
-    opts, args = parse_opts()
+    global args
+    args = parse_args()
 
-    if args:
+    if args.certs:
         # Use the certs on the command-line
-        certs = args
+        certs = args.certs
     else:
         # Look in /etc/grid-security
         certs = []
@@ -30,7 +32,7 @@ def main():
                 certs.append(os.path.join(root, filename))
 
         # Look for puppet certificate
-        puppet_cert_path = "/etc/puppetlabs/puppet/ssl/certs/%s.pem" % os.uname()[1]
+        puppet_cert_path = f"/etc/puppetlabs/puppet/ssl/certs/{os.uname()[1]}.pem"
         if os.path.isfile(puppet_cert_path):
             certs.append(puppet_cert_path)
 
@@ -41,7 +43,7 @@ def main():
 
         c_nospace = c.replace(" ", "_")
 
-        print("%s Host_cert_%s - %s" % (ret, c_nospace, message))
+        print(f"{ret} Host_cert_{c_nospace} - {message}")
         ret_codes.append(ret)
 
     sys.exit(max(ret_codes))
@@ -51,18 +53,18 @@ def check_cert(cert):
     """Check if a certificate is valid and not expired"""
     try:
         check_cert_valid(cert)
-        check_cert_expire(cert, timedelta(days=opts.expire_critical))
+        check_cert_expire(cert, timedelta(days=args.expire_critical))
     except (CertError, IOError) as e:
-        return STATE_CRITICAL, "%s" % (e)
+        return STATE_CRITICAL, str(e)
     except ImportError as e:
-        return STATE_UNKNOWN, "Missing pyOpenSSL, %s" % (e)
+        return STATE_UNKNOWN, f"Missing pyOpenSSL, {e}"
 
     try:
-        expiry = check_cert_expire(cert, timedelta(days=opts.expire_warning))
+        expiry = check_cert_expire(cert, timedelta(days=args.expire_warning))
     except CertError as e:
-        return STATE_WARNING, "%s" % (e)
+        return STATE_WARNING, str(e)
 
-    return STATE_OK, "Expires %s" % (expiry)
+    return STATE_OK, f"Expires {expiry}"
 
 
 def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
@@ -83,8 +85,7 @@ def check_cert_valid(certfile, ca_path="/etc/grid-security/certificates/"):
 
     if b": OK\n" in output:
         return True
-    else:
-        raise CertError("Failed to verify cert against CAs")
+    raise CertError("Failed to verify cert against CAs")
 
 
 def check_cert_expire(certfile, delta):
@@ -95,7 +96,7 @@ def check_cert_expire(certfile, delta):
         raise CertError("Expired")
 
     if datetime.utcnow() + delta >= expiry:
-        raise CertError("Expires %s" % (ago_human(datetime.utcnow() - expiry)))
+        raise CertError(f"Expires {ago_human(datetime.utcnow() - expiry)}")
 
     return expiry
 
@@ -121,26 +122,25 @@ def load_cert(certfile):
     return crypto.load_certificate(crypto.FILETYPE_PEM, certtext)
 
 
-def parse_opts():
-    """Parse command line options, returning (opts, args)"""
-    parser = optparse.OptionParser(usage="%prog [options]")
+def parse_args():
+    """Parse command line options"""
+    parser = argparse.ArgumentParser()
 
-    parser.add_option(
+    parser.add_argument(
         "-w",
         "--warning",
-        help="Expiry warning " "[default: %default]",
         dest="expire_warning",
-        type="float",
+        type=float,
         default=21,
     )
-    parser.add_option(
+    parser.add_argument(
         "-c",
         "--critical",
-        help="Expiry critical " "[default: %default]",
         dest="expire_critical",
-        type="float",
+        type=float,
         default=7,
     )
+    parser.add_argument('certs', nargs='*')
 
     return parser.parse_args()
 
