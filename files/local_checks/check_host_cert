@@ -36,6 +36,7 @@ K8S_CERT_CA = [
         "/etc/kubernetes/pki/etcd/ca.crt",
     ),
     ("/var/lib/kubelet/pki/kubelet-client-current.pem", "/etc/kubernetes/pki/ca.crt"),
+    ("/var/lib/kubelet/pki/kubelet-server-current.pem", "/etc/kubernetes/pki/ca.crt"),
 ]
 
 global args
