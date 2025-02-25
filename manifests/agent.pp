@@ -22,15 +22,18 @@ define check_mk::agent (
             tag     => 'check_mk_remote',
     }
 
+  # Only manage xinetd.d config on EL8 and prior
+  if (versioncmp($facts['os']['release']['major'], '8') <= 0) {
     # xinetd.d configuration
     file { '/etc/xinetd.d/check-mk-agent':
-        ensure  => present,
-        owner   => 'root',
-        group   => 'root',
-        mode    => '0644',
-        content => template('check_mk/check-mk-agent.erb'),
-        notify  => Service[xinetd],
+      ensure  => present,
+      owner   => 'root',
+      group   => 'root',
+      mode    => '0644',
+      content => template('check_mk/check-mk-agent.erb'),
+      notify  => Service[xinetd],
     }
+  }
 
     # symlink mk_inventory plugin to activate if enabled
     if $check_mk::plugin_mk_inventory_enable == true {
