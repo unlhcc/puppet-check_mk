@@ -97,7 +97,7 @@ def main():
         state = max(states)
         message = ', '.join(messages)
 
-        print("%s MegaRAID_SMART_%s %s %s" % (state, dev_id, perf_txt, message))
+        print(f'{state} "MegaRAID_SMART_{dev_id}" {perf_txt} {message}')
 
 def find_megacli():
     mc_search = ['MegaCli', 'MegaCli64', 'megacli']

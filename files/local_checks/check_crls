@@ -44,7 +44,7 @@ def main():
 
         name_nospace = name.replace(' ', '_')
 
-        print("%s CRL_%s - %s" % (ret, name_nospace, message))
+        print(f'{ret} "CRL_{name_nospace}" - {message}')
         ret_codes.append(ret)
 
     sys.exit(max(ret_codes))

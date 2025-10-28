@@ -77,7 +77,7 @@ def main():
 
         c_nospace = cert.replace(" ", "_")
 
-        print(f"{ret} Host_cert_{c_nospace} - {message}")
+        print(f'{ret} "Host_cert_{c_nospace}" - {message}')
         ret_codes.append(ret)
 
     sys.exit(max(ret_codes))
