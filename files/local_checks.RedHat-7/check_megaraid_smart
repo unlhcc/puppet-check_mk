@@ -1,0 +1,153 @@
+#!/usr/libexec/platform-python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import shutil
+import sys
+import subprocess
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def get_drive_temp_threshold(product_name, media_type, slot_number):
+    # Temperature thresholds
+    # Seagate Savvio 10K.3 SAS Product Manual, 100516229, Rev. J, April 2012
+    # "The maximum allowable continuous or sustained HDA case temperature for the
+    # rated MTBF is 122F (50C)."
+    # "Occasional excursions to drive ambient temperatures of 131F (55C) or
+    # 41F (5C) may occur without impact to specified MTBF."
+    temp_crit = 55
+    temp_warn = 50
+
+    # R510 has poor airflow for rear drives. Bump up the warning threshold.
+    if product_name == 'PowerEdge R510':
+        temp_crit = 60
+        temp_warn = 56
+
+    # R730xd have drives with 55 warn, 60 critical as per mfg
+    if product_name =='PowerEdge R730xd':
+        temp_crit = 60
+        temp_warn = 55
+
+    if media_type == 'Solid State Device':
+        # Intel DC S3500 operating temp is 0-70C
+        temp_crit = 68
+        temp_warn = 63
+
+    return temp_crit, temp_warn
+
+def main():
+    # Find the binary or exit
+    megacli = find_megacli() or sys.exit()
+
+    # Get physical disk info from MegaCli
+    proc = subprocess.Popen([megacli, '-PDList', '-aALL', '-NoLog'],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = proc.stdout.readlines()
+
+    # Get system model
+    with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
+        product_name = f.readline().strip()
+
+    # Perf data to include
+    perf_keys = [
+        ('Media Error Count'       , 'media_error'),
+        ('Other Error Count'       , 'other_error'),
+        ('Predictive Failure Count', 'predfail_count'),
+        ('Shield Counter'          , 'shield_count'),
+        ('Drive Temperature'       , 'temp'),
+    ]
+
+    # Parse drive info
+    for pd in parse_pdlist(output):
+        dev_id = 'c%s/e%s/s%s' % (pd['Controller'], pd['Enclosure Device ID'], pd['Slot Number'])
+        states = []
+        messages = []
+
+        perf = []
+        for key, val in perf_keys:
+            if key in pd and pd[key]:
+                perf.append((val, pd[key]))
+        perf_txt = '|'.join(['%s=%s' % (key, value) for (key, value) in perf])
+
+        if pd['Drive has flagged a S.M.A.R.T alert'] == 'No':
+            states.append(STATE_OK)
+            messages.append("Drive SMART OK")
+        else:
+            states.append(STATE_CRITICAL)
+            messages.append("SMART alert flagged")
+
+        if pd['Firmware state'] == 'Failed':
+            states.append(STATE_CRITICAL)
+            messages.append("Firmware state failed")
+
+        # Temp threshold may vary depending on hardware type
+        temp_crit, temp_warn = get_drive_temp_threshold(product_name, pd['Media Type'], pd['Slot Number'])
+
+        pd_temp = pd['Drive Temperature']
+        if pd_temp > temp_crit:
+            states.append(STATE_CRITICAL)
+            messages.append("Temp critical: %sC > %sC" % (pd_temp, temp_crit))
+        elif pd['Drive Temperature'] > temp_warn:
+            states.append(STATE_WARNING)
+            messages.append("Temp warning: %sC > %sC" % (pd_temp, temp_warn))
+
+        state = max(states)
+        message = ', '.join(messages)
+
+        print("%s MegaRAID_SMART_%s %s %s" % (state, dev_id, perf_txt, message))
+
+def find_megacli():
+    mc_search = ['MegaCli', 'MegaCli64', 'megacli']
+
+    if sys.version_info[0] < 3:
+        import distutils.spawn
+        shutil.which = distutils.spawn.find_executable
+
+    for mc in mc_search:
+        exe = shutil.which(mc)
+        if exe:
+            return exe
+    return None
+
+def parse_pdlist(output):
+    ctlr = None
+    drive_info = {}
+
+    for line in output:
+        line = line.strip()
+        if line.startswith('Adapter #'):
+            ctlr = int(line[9:])
+
+        if ':' in line:
+            key, val = line.split(':', 1)
+            key = key.strip()
+            val = val.strip()
+
+            if key == 'Drive Temperature':
+                if val == 'N/A':
+                    val = None
+                else:
+                    # Split off the int
+                    val = int(val.split('C', 1)[0])
+
+            # Marks the start of a new drive
+            if key == 'Enclosure Device ID':
+                if drive_info:
+                    drive_info['Controller'] = ctlr
+                    yield drive_info
+                drive_info = {}
+            elif key == 'Exit Code':
+                continue
+
+            drive_info[key] = val
+
+    if drive_info:
+        drive_info['Controller'] = ctlr
+        yield drive_info
+
+if __name__ == "__main__":
+    #runs script as main
+    main()
